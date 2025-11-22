@@ -1,0 +1,1587 @@
+<!--
+Resumen de cambios:
+- Tema claro/blanco.
+- Gráfico de barras de distribución por MOVILIZACION (rojo/amarillo/verde) usando Chart.js.
+- Formulario para agregar nuevas personas (se guardan en localStorage).
+- Campo para subir foto; se almacena como DataURL local y se puede abrir con "Ver".
+- Sigue leyendo los datos base desde tu Google Sheets publicado (CSV).
+
+Supuestos:
+- La hoja tiene encabezados: ID, NOMBRE, TELEFONO, ZONA, DIRECCION, RELACION,
+  ESTRUCTURA, TIENE FIRMA, VOTO VALIDO, MOVILIZACION, Capturado_por, FOTO, CANAL DE VOTO.
+- TIENE FIRMA y VOTO VALIDO vienen como "Sí"/"No" (con o sin acento).
+
+Instrucciones rápidas:
+1) Guarda este archivo como .html (por ejemplo: Proyecto.html).
+2) Ábrelo en el navegador.
+3) El dashboard cargará los datos del Sheets.
+4) Usa los filtros y el buscador.
+5) En la tabla, usa el botón "Marcar YA votó / Marcar NO votó".
+6) Usa el formulario de la derecha para agregar personas nuevas y subir su foto.
+7) Cambios y nuevos registros se guardan en esta computadora (localStorage), no en Sheets.
+-->
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>OMAR RIOS– Claro</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    :root {
+      --bg: #f9fafb;
+      --bg-alt: #eff3f8;
+      --card: #ffffff;
+      --border: #e5e7eb;
+      --border-strong: #d1d5db;
+      --accent: #2563eb;
+      --accent-soft: #e0edff;
+      --accent-strong: #1d4ed8;
+      --text-main: #111827;
+      --text-soft: #6b7280;
+      --text-softer: #9ca3af;
+      --danger: #dc2626;
+      --warning: #d97706;
+      --success: #16a34a;
+      --muted: #9ca3af;
+      --radius-lg: 16px;
+      --radius-full: 999px;
+      --shadow-soft: 0 16px 40px rgba(15, 23, 42, 0.08);
+      --shadow-card: 0 24px 60px rgba(15, 23, 42, 0.06);
+      --transition-fast: 150ms ease-out;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      background: radial-gradient(circle at top, #e5edff 0, #f9fafb 45%, #f3f4f6 100%);
+      color: var(--text-main);
+      min-height: 100vh;
+    }
+
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 16px 40px;
+    }
+
+    header {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+
+    @media (min-width: 720px) {
+      header {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+      }
+    }
+
+    .title-block {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .title-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      border: 1px solid #d1d5db;
+      background: linear-gradient(135deg, #eff6ff, #ffffff);
+      color: var(--text-soft);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .title-chip-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--success);
+      box-shadow: 0 0 10px rgba(22, 163, 74, 0.8);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: -0.03em;
+    }
+
+    .subtitle {
+      margin: 0;
+      font-size: 13px;
+      color: var(--text-soft);
+      max-width: 460px;
+    }
+
+    .sheet-pill {
+      align-self: flex-start;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: var(--radius-full);
+      background: #ffffff;
+      border: 1px solid var(--border);
+      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06);
+      font-size: 12px;
+      color: var(--text-soft);
+    }
+
+    .sheet-pill span.key {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-softer);
+    }
+
+    .sheet-pill span.value {
+      font-weight: 500;
+      color: var(--accent-strong);
+    }
+
+    /* Filters */
+
+    .filters-card {
+      background: #ffffff;
+      border-radius: var(--radius-lg);
+      padding: 14px 14px 14px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-soft);
+      margin-bottom: 12px;
+    }
+
+    .filters-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .filters-title {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-softer);
+    }
+
+    .filters-reset {
+      border: none;
+      background: transparent;
+      color: var(--accent-strong);
+      font-size: 11px;
+      cursor: pointer;
+      padding: 3px 8px;
+      border-radius: 999px;
+      transition: background var(--transition-fast), color var(--transition-fast);
+    }
+
+    .filters-reset:hover {
+      background: #e5edff;
+    }
+
+    .filters-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    @media (min-width: 880px) {
+      .filters-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .field label {
+      font-size: 11px;
+      color: var(--text-softer);
+    }
+
+    .field select,
+    .field input[type="text"] {
+      width: 100%;
+      padding: 7px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--border-strong);
+      background: #ffffff;
+      color: var(--text-main);
+      font-size: 12px;
+      outline: none;
+      transition: border var(--transition-fast), box-shadow var(--transition-fast),
+        background var(--transition-fast);
+    }
+
+    .field select:focus,
+    .field input[type="text"]:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.35);
+      background: #f9fafb;
+    }
+
+    /* KPI cards */
+
+    .kpi-grid {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    @media (min-width: 880px) {
+      .kpi-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+    }
+
+    .kpi-card {
+      background: linear-gradient(145deg, #ffffff, #f3f4ff);
+      border-radius: 18px;
+      padding: 10px 12px 11px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-card);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-softer);
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .kpi-value {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.04em;
+      margin-bottom: 2px;
+      color: var(--text-main);
+    }
+
+    .kpi-footer {
+      font-size: 10px;
+      color: var(--text-soft);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .kpi-pill {
+      border-radius: 999px;
+      padding: 2px 7px;
+      font-size: 10px;
+      border: 1px solid var(--border-strong);
+      background: #ffffff;
+      color: var(--text-soft);
+    }
+
+    .kpi-pill.green {
+      border-color: rgba(22, 163, 74, 0.65);
+      color: var(--success);
+      background: #ecfdf5;
+    }
+
+    .kpi-pill.red {
+      border-color: rgba(220, 38, 38, 0.7);
+      color: var(--danger);
+      background: #fef2f2;
+    }
+
+    .kpi-pill.yellow {
+      border-color: rgba(217, 119, 6, 0.7);
+      color: var(--warning);
+      background: #fffbeb;
+    }
+
+    /* Chart + Add grid */
+
+    .secondary-grid {
+      margin-top: 16px;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+
+    @media (min-width: 960px) {
+      .secondary-grid {
+        grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+      }
+    }
+
+    .chart-card,
+    .add-card {
+      background: #ffffff;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-card);
+      padding: 12px 14px 14px;
+    }
+
+    .chart-title {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .chart-subtitle {
+      font-size: 11px;
+      color: var(--text-soft);
+    }
+
+    .chart-body {
+      margin-top: 10px;
+      height: 260px;
+    }
+
+    .add-title {
+      font-size: 13px;
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .add-subtitle {
+      font-size: 11px;
+      color: var(--text-soft);
+      margin-bottom: 10px;
+    }
+
+    .add-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    @media (min-width: 960px) {
+      .add-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    .add-actions {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .btn-add {
+      align-self: flex-start;
+      border-radius: 999px;
+      padding: 7px 16px;
+      font-size: 11px;
+      border: none;
+      background: var(--accent-strong);
+      color: #ffffff;
+      cursor: pointer;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      transition: background var(--transition-fast), transform var(--transition-fast),
+        box-shadow var(--transition-fast);
+    }
+
+    .btn-add:hover {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 18px rgba(37, 99, 235, 0.35);
+    }
+
+    .add-note {
+      font-size: 10px;
+      color: var(--text-soft);
+    }
+
+    /* Table section */
+
+    .table-card {
+      margin-top: 18px;
+      background: #ffffff;
+      border-radius: 18px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-card);
+      overflow: hidden;
+    }
+
+    .table-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: #f9fafb;
+    }
+
+    .table-title {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .table-subtitle {
+      font-size: 11px;
+      color: var(--text-soft);
+    }
+
+    .table-badge {
+      font-size: 10px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      background: #eef2ff;
+      border: 1px solid #c7d2fe;
+      color: #4338ca;
+    }
+
+    .table-wrapper {
+      max-height: 480px;
+      overflow: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #9ca3af #f9fafb;
+    }
+
+    .table-wrapper::-webkit-scrollbar {
+      height: 9px;
+      width: 9px;
+    }
+    .table-wrapper::-webkit-scrollbar-track {
+      background: #f9fafb;
+    }
+    .table-wrapper::-webkit-scrollbar-thumb {
+      background: #9ca3af;
+      border-radius: 999px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+
+    thead {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: #f9fafb;
+    }
+
+    th,
+    td {
+      padding: 7px 10px;
+      text-align: left;
+      border-bottom: 1px solid #e5e7eb;
+      white-space: nowrap;
+    }
+
+    th {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-softer);
+      background: #f9fafb;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    tbody tr:nth-child(even) {
+      background: #ffffff;
+    }
+
+    tbody tr:nth-child(odd) {
+      background: #f9fafb;
+    }
+
+    tbody tr:hover {
+      background: #e0edff;
+    }
+
+    td.small {
+      font-size: 10px;
+      color: var(--text-soft);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 64px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 500;
+    }
+
+    .badge.red {
+      background: #fee2e2;
+      color: var(--danger);
+      border: 1px solid #fecaca;
+    }
+
+    .badge.yellow {
+      background: #fef9c3;
+      color: var(--warning);
+      border: 1px solid #fef3c7;
+    }
+
+    .badge.green {
+      background: #dcfce7;
+      color: var(--success);
+      border: 1px solid #bbf7d0;
+    }
+
+    .badge.gray {
+      background: #e5e7eb;
+      color: #4b5563;
+      border: 1px solid #d1d5db;
+    }
+
+    .link {
+      color: var(--accent-strong);
+      text-decoration: none;
+      font-size: 11px;
+    }
+
+    .link:hover {
+      text-decoration: underline;
+    }
+
+    .pill-mov {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+    }
+
+    .pill-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 999px;
+    }
+
+    .pill-dot.red {
+      background: var(--danger);
+    }
+
+    .pill-dot.yellow {
+      background: var(--warning);
+    }
+
+    .pill-dot.green {
+      background: var(--success);
+    }
+
+    .pill-dot.gray {
+      background: var(--muted);
+    }
+
+    .status-empty {
+      padding: 16px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-soft);
+    }
+
+    .status-error {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      border: 1px solid rgba(220, 38, 38, 0.7);
+      background: #fef2f2;
+      color: #7f1d1d;
+      font-size: 12px;
+    }
+
+    .status-error code {
+      font-size: 11px;
+      background: #fee2e2;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+
+    .muted {
+      color: var(--text-soft);
+    }
+
+    .btn-toggle {
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 10px;
+      border: 1px solid var(--border-strong);
+      background: #ffffff;
+      cursor: pointer;
+      color: var(--text-soft);
+      transition: background var(--transition-fast), color var(--transition-fast),
+        border var(--transition-fast), transform var(--transition-fast);
+      white-space: nowrap;
+    }
+
+    .btn-toggle.primary {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+    }
+
+    .btn-toggle.success {
+      border-color: var(--success);
+      background: #dcfce7;
+      color: var(--success);
+    }
+
+    .btn-toggle:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(15, 23, 42, 0.08);
+    }
+
+    @media (max-width: 720px) {
+      th:nth-child(4),
+      th:nth-child(5),
+      th:nth-child(6),
+      th:nth-child(7),
+      td:nth-child(4),
+      td:nth-child(5),
+      td:nth-child(6),
+      td:nth-child(7) {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div class="title-block">
+        <div class="title-chip">
+          <span class="title-chip-dot"></span>
+          <span>OMAR RIOS</span>
+        </div>
+        <h1>Dashboard de movilización</h1>
+        <p class="subtitle">
+          Vista tipo campaña para seguir quién ya firmó, quién ya votó y cómo se mueve tu base,
+          leyendo directamente la Hoja 1 de tu Google Sheets publicado.
+        </p>
+      </div>
+      <div class="sheet-pill">
+        <span class="key">Sheets:</span>
+        <span class="value">Hoja 1 (CSV público)</span>
+      </div>
+    </header>
+
+    <section class="filters-card">
+      <div class="filters-header">
+        <div class="filters-title">Filtros, búsqueda y resumen</div>
+        <button class="filters-reset" id="btn-reset">Limpiar filtros</button>
+      </div>
+      <div class="filters-grid">
+        <div class="field">
+          <label for="filter-zona">Zona</label>
+          <select id="filter-zona">
+            <option value="">Todas</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="filter-relacion">Relación</label>
+          <select id="filter-relacion">
+            <option value="">Todas</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="filter-estructura">Estructura</label>
+          <select id="filter-estructura">
+            <option value="">Todas</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="filter-mov">Movilización (semáforo)</label>
+          <select id="filter-mov">
+            <option value="">Todos</option>
+            <option value="No contactado">No contactado (Rojo)</option>
+            <option value="Firmó sin voto">Firmó sin voto (Amarillo)</option>
+            <option value="Ya votó">Ya votó (Verde)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="search-text">Buscar (nombre / teléfono)</label>
+          <input
+            type="text"
+            id="search-text"
+            placeholder="Ej. Ana, 614…"
+            autocomplete="off"
+          />
+        </div>
+      </div>
+
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Total personas</div>
+          <div class="kpi-value" id="kpi-total">–</div>
+          <div class="kpi-footer">
+            <span class="kpi-pill">Base completa</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Con firma</div>
+          <div class="kpi-value" id="kpi-firma">–</div>
+          <div class="kpi-footer">
+            <span class="kpi-pill">Comprometidos</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Con voto válido</div>
+          <div class="kpi-value" id="kpi-voto">–</div>
+          <div class="kpi-footer">
+            <span class="kpi-pill green">Meta principal</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">% firmantes que votan</div>
+          <div class="kpi-value" id="kpi-porc">–</div>
+          <div class="kpi-footer">
+            <span class="kpi-pill">Conversión firma → voto</span>
+          </div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Distribución semáforo</div>
+          <div class="kpi-value" id="kpi-sem">–</div>
+          <div class="kpi-footer">
+            <span class="kpi-pill green" id="kpi-sem-verde">V: –</span>
+            <span class="kpi-pill yellow" id="kpi-sem-amarillo">A: –</span>
+            <span class="kpi-pill red" id="kpi-sem-rojo">R: –</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="secondary-grid">
+      <div class="chart-card">
+        <div class="chart-title">Distribución por movilización</div>
+        <div class="chart-subtitle">
+          Cuántas personas tienes en rojo, amarillo y verde con los filtros actuales.
+        </div>
+        <div class="chart-body">
+          <canvas id="chart-mov"></canvas>
+        </div>
+      </div>
+
+      <div class="add-card">
+        <div class="add-title">Agregar nueva persona</div>
+        <div class="add-subtitle">
+          Te permite capturar personas nuevas desde llamadas o mensajes. Se guarda localmente
+          en este navegador, sin modificar el Sheets original.
+        </div>
+        <form id="form-add">
+          <div class="add-grid">
+            <div class="field">
+              <label for="add-nombre">Nombre completo</label>
+              <input id="add-nombre" type="text" placeholder="Ej. Ana López" />
+            </div>
+            <div class="field">
+              <label for="add-telefono">Teléfono</label>
+              <input id="add-telefono" type="text" placeholder="Ej. 614..." />
+            </div>
+            <div class="field">
+              <label for="add-zona">Zona</label>
+              <input id="add-zona" type="text" placeholder="Centro, San Felipe..." />
+            </div>
+            <div class="field">
+              <label for="add-direccion">Dirección</label>
+              <input id="add-direccion" type="text" placeholder="Calle y número" />
+            </div>
+            <div class="field">
+              <label for="add-relacion">Relación</label>
+              <select id="add-relacion">
+                <option value="">Seleccionar…</option>
+                <option value="Familia">Familia</option>
+                <option value="Amigos">Amigos</option>
+                <option value="Clientes">Clientes</option>
+                <option value="Escuela">Escuela</option>
+                <option value="Otros">Otros</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="add-estructura">Estructura</label>
+              <input id="add-estructura" type="text" placeholder="Ej. Equipo Santi" />
+            </div>
+            <div class="field">
+              <label for="add-firma">Tiene firma</label>
+              <select id="add-firma">
+                <option value="si">Sí</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="add-voto">Voto válido</label>
+              <select id="add-voto">
+                <option value="no">No</option>
+                <option value="si">Sí</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="add-canal">Canal de voto</label>
+              <input
+                id="add-canal"
+                type="text"
+                placeholder="Web concurso, QR, Stand…"
+              />
+            </div>
+            <div class="field">
+              <label for="add-capturado">Capturado por</label>
+              <input id="add-capturado" type="text" placeholder="Ej. Santiago" />
+            </div>
+            <div class="field">
+              <label for="add-foto">Foto (se guarda local)</label>
+              <input id="add-foto" type="file" accept="image/*" />
+            </div>
+          </div>
+          <div class="add-actions">
+            <button type="submit" class="btn-add">Agregar persona</button>
+            <div class="add-note">
+              Los registros nuevos y sus fotos se almacenan sólo en este navegador mediante
+              memoria local (no se suben a Google Sheets ni a la nube).
+            </div>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <section class="table-card">
+      <div class="table-header">
+        <div>
+          <div class="table-title">Personas y estado de movilización</div>
+          <div class="table-subtitle">
+            Tabla filtrable con semáforo por persona y botón para marcar si ya votó.
+          </div>
+        </div>
+        <div class="table-badge">
+          <span id="badge-count">0 registros</span>
+        </div>
+      </div>
+      <div class="table-wrapper" id="table-wrapper">
+        <table id="data-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nombre</th>
+              <th>Teléfono</th>
+              <th>Zona</th>
+              <th>Dirección</th>
+              <th>Relación</th>
+              <th>Estructura</th>
+              <th>Firma</th>
+              <th>Voto</th>
+              <th>Movilización</th>
+              <th>Capturado por</th>
+              <th>Foto</th>
+              <th>Canal voto</th>
+              <th>Editar voto</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td colspan="14" class="status-empty">
+                Cargando datos desde Google Sheets…
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="error-box" class="status-error" style="display:none;">
+        <strong>Ocurrió un problema al cargar el CSV.</strong><br />
+        Verifica que el enlace de publicación esté activo y accesible.<br />
+        <span class="muted">
+          Detalle técnico:
+          <code id="error-detail"></code>
+        </span>
+      </div>
+    </section>
+  </div>
+
+  <!-- Chart.js y PapaParse -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <script>
+    // URL del CSV publicado desde Google Sheets
+    const CSV_URL =
+      "https://docs.google.com/spreadsheets/d/e/2PACX-1vTFYISEAuSFQd84d241SOQz8nfHngFvgQQKUdbz-mA5OQT2rZ4SJM7Z6mzW1Wjh7zZiM1D7LFBHi0aQ/pub?gid=0&single=true&output=csv";
+
+    const LS_KEY_OVERRIDES = "paysDashboardOverridesVoto";
+    const LS_KEY_NEW = "paysDashboardNewRecordsV1";
+
+    let sheetRows = [];
+    let newRows = [];
+    let allRows = [];
+    let movChart = null;
+
+    const els = {
+      filterZona: document.getElementById("filter-zona"),
+      filterRelacion: document.getElementById("filter-relacion"),
+      filterEstructura: document.getElementById("filter-estructura"),
+      filterMov: document.getElementById("filter-mov"),
+      searchText: document.getElementById("search-text"),
+      btnReset: document.getElementById("btn-reset"),
+      tbody: document.querySelector("#data-table tbody"),
+      badgeCount: document.getElementById("badge-count"),
+      kpiTotal: document.getElementById("kpi-total"),
+      kpiFirma: document.getElementById("kpi-firma"),
+      kpiVoto: document.getElementById("kpi-voto"),
+      kpiPorc: document.getElementById("kpi-porc"),
+      kpiSem: document.getElementById("kpi-sem"),
+      kpiSemVerde: document.getElementById("kpi-sem-verde"),
+      kpiSemAmarillo: document.getElementById("kpi-sem-amarillo"),
+      kpiSemRojo: document.getElementById("kpi-sem-rojo"),
+      errorBox: document.getElementById("error-box"),
+      errorDetail: document.getElementById("error-detail"),
+      formAdd: document.getElementById("form-add"),
+      addNombre: document.getElementById("add-nombre"),
+      addTelefono: document.getElementById("add-telefono"),
+      addZona: document.getElementById("add-zona"),
+      addDireccion: document.getElementById("add-direccion"),
+      addRelacion: document.getElementById("add-relacion"),
+      addEstructura: document.getElementById("add-estructura"),
+      addFirma: document.getElementById("add-firma"),
+      addVoto: document.getElementById("add-voto"),
+      addCanal: document.getElementById("add-canal"),
+      addCapturado: document.getElementById("add-capturado"),
+      addFoto: document.getElementById("add-foto"),
+    };
+
+    function normalizeBase(str) {
+      return (str || "")
+        .toString()
+        .trim()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase();
+    }
+
+    function normalizeYesNo(str) {
+      const n = normalizeBase(str);
+      if (n === "si" || n === "sí" || n === "s" || n === "yes") return "si";
+      if (n === "no" || n === "n") return "no";
+      return "";
+    }
+
+    function computeMovilizacionFromFlags(tieneFirma, votoValido) {
+      if (!tieneFirma && !votoValido) return "No contactado";
+      if (tieneFirma && !votoValido) return "Firmó sin voto";
+      if (votoValido) return "Ya votó";
+      return "Sin clasificar";
+    }
+
+    function colorForMov(mov) {
+      const n = normalizeBase(mov);
+      if (n.startsWith("no contact")) return "red";
+      if (n.startsWith("firmo") || n.includes("firmo sin voto")) return "yellow";
+      if (n.startsWith("ya voto") || n.includes("ya voto")) return "green";
+      return "gray";
+    }
+
+    function recomputeFlags(row) {
+      row.movilizacion = computeMovilizacionFromFlags(
+        row.tieneFirma,
+        row.votoValido
+      );
+      row.color = colorForMov(row.movilizacion);
+    }
+
+    function transformRow(row, index) {
+      const get = (key) => (row[key] || "").toString().trim();
+
+      const tf = normalizeYesNo(row["TIENE FIRMA"] || row["TIENE_FIRMA"]);
+      const tv = normalizeYesNo(row["VOTO VALIDO"] || row["VOTO_VALIDO"]);
+      let tieneFirma = tf === "si";
+      let votoValido = tv === "si";
+
+      const transformed = {
+        raw: row,
+        id: get("ID") || `ROW_${index + 1}`,
+        nombre: get("NOMBRE"),
+        telefono: get("TELEFONO"),
+        zona: get("ZONA"),
+        direccion: get("DIRECCION"),
+        relacion: get("RELACION"),
+        estructura: get("ESTRUCTURA"),
+        tieneFirma,
+        votoValido,
+        movilizacion: "",
+        color: "",
+        capturadoPor: get("Capturado_por") || get("CAPTURADO_POR"),
+        foto: get("FOTO"),
+        canalVoto: get("CANAL DE VOTO") || get("CANAL_DE_VOTO"),
+        isNew: false,
+        isLocalPhoto: false,
+        localPhotoData: "",
+      };
+
+      recomputeFlags(transformed);
+      return transformed;
+    }
+
+    function createRowFromNewData(d) {
+      const row = {
+        raw: {},
+        id: d.id,
+        nombre: d.nombre || "",
+        telefono: d.telefono || "",
+        zona: d.zona || "",
+        direccion: d.direccion || "",
+        relacion: d.relacion || "",
+        estructura: d.estructura || "",
+        tieneFirma: !!d.tieneFirma,
+        votoValido: !!d.votoValido,
+        movilizacion: "",
+        color: "",
+        capturadoPor: d.capturadoPor || "",
+        foto: "",
+        canalVoto: d.canalVoto || "",
+        isNew: true,
+        isLocalPhoto: !!d.localPhotoData,
+        localPhotoData: d.localPhotoData || "",
+      };
+      if (row.isLocalPhoto && row.localPhotoData) {
+        row.foto = row.localPhotoData;
+      }
+      recomputeFlags(row);
+      return row;
+    }
+
+    function loadOverrides() {
+      try {
+        const raw = localStorage.getItem(LS_KEY_OVERRIDES);
+        if (!raw) return {};
+        const parsed = JSON.parse(raw);
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch (e) {
+        console.warn("Error leyendo overrides:", e);
+        return {};
+      }
+    }
+
+    function saveOverrides(obj) {
+      try {
+        localStorage.setItem(LS_KEY_OVERRIDES, JSON.stringify(obj || {}));
+      } catch (e) {
+        console.warn("Error guardando overrides:", e);
+      }
+    }
+
+    function loadNewRows() {
+      try {
+        const raw = localStorage.getItem(LS_KEY_NEW);
+        if (!raw) {
+          newRows = [];
+          return;
+        }
+        const arr = JSON.parse(raw);
+        if (!Array.isArray(arr)) {
+          newRows = [];
+          return;
+        }
+        newRows = arr.map((d) => createRowFromNewData(d));
+      } catch (e) {
+        console.warn("Error leyendo nuevos registros:", e);
+        newRows = [];
+      }
+    }
+
+    function saveNewRows() {
+      try {
+        const arr = newRows.map((r) => ({
+          id: r.id,
+          nombre: r.nombre,
+          telefono: r.telefono,
+          zona: r.zona,
+          direccion: r.direccion,
+          relacion: r.relacion,
+          estructura: r.estructura,
+          tieneFirma: r.tieneFirma,
+          votoValido: r.votoValido,
+          capturadoPor: r.capturadoPor,
+          canalVoto: r.canalVoto,
+          localPhotoData: r.isLocalPhoto ? r.localPhotoData || "" : "",
+        }));
+        localStorage.setItem(LS_KEY_NEW, JSON.stringify(arr));
+      } catch (e) {
+        console.warn("Error guardando nuevos registros:", e);
+      }
+    }
+
+    function rebuildAllRows() {
+      allRows = sheetRows.concat(newRows);
+    }
+
+    async function loadCSV() {
+      try {
+        els.errorBox.style.display = "none";
+        const response = await fetch(CSV_URL);
+        if (!response.ok) {
+          throw new Error("HTTP " + response.status + " " + response.statusText);
+        }
+        const csvText = await response.text();
+
+        const parsed = Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+        });
+
+        if (parsed.errors && parsed.errors.length > 0) {
+          console.warn("Papaparse errors:", parsed.errors);
+        }
+
+        sheetRows = parsed.data.map((row, idx) => transformRow(row, idx));
+
+        // aplicar overrides de voto a filas originales (no a las nuevas)
+        const overrides = loadOverrides();
+        sheetRows.forEach((r) => {
+          const o = overrides[r.id];
+          if (o && typeof o.votoValido === "boolean") {
+            r.votoValido = o.votoValido;
+            if (r.votoValido && !r.tieneFirma) {
+              r.tieneFirma = true;
+            }
+            recomputeFlags(r);
+          }
+        });
+
+        // cargar registros nuevos desde localStorage
+        loadNewRows();
+
+        rebuildAllRows();
+        buildFilterOptions();
+        applyFiltersAndRender();
+      } catch (err) {
+        console.error("Error al cargar CSV:", err);
+        els.errorDetail.textContent = err.message || String(err);
+        els.errorBox.style.display = "block";
+        els.tbody.innerHTML =
+          '<tr><td colspan="14" class="status-empty">No se pudieron cargar los datos.</td></tr>';
+      }
+    }
+
+    function uniqueSorted(values) {
+      return Array.from(new Set(values.filter((v) => v && v.trim() !== ""))).sort(
+        (a, b) => a.localeCompare(b, "es")
+      );
+    }
+
+    function buildFilterOptions() {
+      const zonas = uniqueSorted(allRows.map((r) => r.zona));
+      const rels = uniqueSorted(allRows.map((r) => r.relacion));
+      const ests = uniqueSorted(allRows.map((r) => r.estructura));
+
+      function populateSelect(select, values) {
+        const current = select.value;
+        select.innerHTML = "";
+        const optAll = document.createElement("option");
+        optAll.value = "";
+        optAll.textContent = "Todas";
+        select.appendChild(optAll);
+
+        values.forEach((v) => {
+          const opt = document.createElement("option");
+          opt.value = v;
+          opt.textContent = v;
+          select.appendChild(opt);
+        });
+
+        if (current && values.includes(current)) {
+          select.value = current;
+        }
+      }
+
+      populateSelect(els.filterZona, zonas);
+      populateSelect(els.filterRelacion, rels);
+      populateSelect(els.filterEstructura, ests);
+    }
+
+    function applyFiltersAndRender() {
+      const zona = els.filterZona.value || "";
+      const relacion = els.filterRelacion.value || "";
+      const estructura = els.filterEstructura.value || "";
+      const mov = els.filterMov.value || "";
+      const search = normalizeBase(els.searchText.value || "");
+
+      const filtered = allRows.filter((r) => {
+        if (zona && r.zona !== zona) return false;
+        if (relacion && r.relacion !== relacion) return false;
+        if (estructura && r.estructura !== estructura) return false;
+        if (mov && r.movilizacion !== mov) return false;
+
+        if (search) {
+          const text = normalizeBase(r.nombre + " " + r.telefono);
+          if (!text.includes(search)) return false;
+        }
+        return true;
+      });
+
+      renderKpis(filtered);
+      renderTable(filtered);
+      renderChart(filtered);
+    }
+
+    function renderKpis(rows) {
+      const total = rows.length;
+      const conFirma = rows.filter((r) => r.tieneFirma).length;
+      const conVoto = rows.filter((r) => r.votoValido).length;
+
+      const rojos = rows.filter((r) => r.color === "red").length;
+      const amarillos = rows.filter((r) => r.color === "yellow").length;
+      const verdes = rows.filter((r) => r.color === "green").length;
+
+      els.kpiTotal.textContent = total.toString();
+      els.kpiFirma.textContent = conFirma.toString();
+      els.kpiVoto.textContent = conVoto.toString();
+
+      let porc = "–";
+      if (conFirma > 0) {
+        porc = ((conVoto / conFirma) * 100).toFixed(1) + "%";
+      }
+      els.kpiPorc.textContent = porc;
+
+      els.kpiSem.textContent = total
+        ? `${((verdes / total) * 100).toFixed(0)}% verdes`
+        : "–";
+
+      els.kpiSemVerde.textContent = `V: ${verdes}`;
+      els.kpiSemAmarillo.textContent = `A: ${amarillos}`;
+      els.kpiSemRojo.textContent = `R: ${rojos}`;
+
+      els.badgeCount.textContent =
+        total === 1 ? "1 registro filtrado" : `${total} registros filtrados`;
+    }
+
+    function renderChart(rows) {
+      const ctxEl = document.getElementById("chart-mov");
+      if (!ctxEl) return;
+      const ctx = ctxEl.getContext("2d");
+
+      const rojos = rows.filter((r) => r.movilizacion === "No contactado").length;
+      const amarillos = rows.filter((r) => r.movilizacion === "Firmó sin voto").length;
+      const verdes = rows.filter((r) => r.movilizacion === "Ya votó").length;
+
+      const data = [rojos, amarillos, verdes];
+
+      const config = {
+        type: "bar",
+        data: {
+          labels: ["No contactado", "Firmó sin voto", "Ya votó"],
+          datasets: [
+            {
+              label: "Personas",
+              data,
+              backgroundColor: [
+                "rgba(220, 38, 38, 0.18)",
+                "rgba(217, 119, 6, 0.18)",
+                "rgba(22, 163, 74, 0.18)",
+              ],
+              borderColor: [
+                "rgba(220, 38, 38, 0.9)",
+                "rgba(217, 119, 6, 0.9)",
+                "rgba(22, 163, 74, 0.9)",
+              ],
+              borderWidth: 1.5,
+              borderRadius: 6,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0,
+              },
+            },
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              mode: "index",
+              intersect: false,
+            },
+          },
+        },
+      };
+
+      if (!movChart) {
+        movChart = new Chart(ctx, config);
+      } else {
+        movChart.data.datasets[0].data = data;
+        movChart.update();
+      }
+    }
+
+    function renderTable(rows) {
+      if (!rows.length) {
+        els.tbody.innerHTML =
+          '<tr><td colspan="14" class="status-empty">No hay registros con los filtros actuales.</td></tr>';
+        return;
+      }
+
+      const frag = document.createDocumentFragment();
+
+      rows.forEach((r) => {
+        const tr = document.createElement("tr");
+
+        const tdId = document.createElement("td");
+        tdId.textContent = r.id;
+        tdId.className = "small";
+        tr.appendChild(tdId);
+
+        const tdNombre = document.createElement("td");
+        tdNombre.textContent = r.nombre;
+        tr.appendChild(tdNombre);
+
+        const tdTel = document.createElement("td");
+        const linkTel = document.createElement("a");
+        linkTel.href = r.telefono ? `tel:${r.telefono}` : "#";
+        linkTel.textContent = r.telefono || "—";
+        linkTel.className = "link";
+        tdTel.appendChild(linkTel);
+        tr.appendChild(tdTel);
+
+        const tdZona = document.createElement("td");
+        tdZona.textContent = r.zona;
+        tdZona.className = "small";
+        tr.appendChild(tdZona);
+
+        const tdDir = document.createElement("td");
+        tdDir.textContent = r.direccion;
+        tdDir.className = "small";
+        tr.appendChild(tdDir);
+
+        const tdRel = document.createElement("td");
+        tdRel.textContent = r.relacion;
+        tdRel.className = "small";
+        tr.appendChild(tdRel);
+
+        const tdEst = document.createElement("td");
+        tdEst.textContent = r.estructura;
+        tdEst.className = "small";
+        tr.appendChild(tdEst);
+
+        const tdFirma = document.createElement("td");
+        const spanFirma = document.createElement("span");
+        spanFirma.className =
+          "badge " + (r.tieneFirma ? "green" : "gray");
+        spanFirma.textContent = r.tieneFirma ? "Sí" : "No";
+        tdFirma.appendChild(spanFirma);
+        tr.appendChild(tdFirma);
+
+        const tdVoto = document.createElement("td");
+        const spanVoto = document.createElement("span");
+        spanVoto.className =
+          "badge " + (r.votoValido ? "green" : "gray");
+        spanVoto.textContent = r.votoValido ? "Sí" : "No";
+        tdVoto.appendChild(spanVoto);
+        tr.appendChild(tdVoto);
+
+        const tdMov = document.createElement("td");
+        const pill = document.createElement("span");
+        pill.className = "pill-mov";
+        const dot = document.createElement("span");
+        dot.className = "pill-dot " + r.color;
+        const text = document.createElement("span");
+        text.textContent = r.movilizacion;
+        pill.appendChild(dot);
+        pill.appendChild(text);
+        tdMov.appendChild(pill);
+        tr.appendChild(tdMov);
+
+        const tdCap = document.createElement("td");
+        tdCap.textContent = r.capturadoPor || "—";
+        tdCap.className = "small";
+        tr.appendChild(tdCap);
+
+        const tdFoto = document.createElement("td");
+        if (r.foto) {
+          const link = document.createElement("a");
+          link.href = r.foto;
+          link.target = "_blank";
+          link.textContent = "Ver";
+          link.className = "link";
+          tdFoto.appendChild(link);
+        } else {
+          tdFoto.textContent = "—";
+          tdFoto.className = "small";
+        }
+        tr.appendChild(tdFoto);
+
+        const tdCanal = document.createElement("td");
+        tdCanal.textContent = r.canalVoto || "—";
+        tdCanal.className = "small";
+        tr.appendChild(tdCanal);
+
+        const tdEdit = document.createElement("td");
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className =
+          "btn-toggle " + (r.votoValido ? "success" : "primary");
+        btn.textContent = r.votoValido ? "Marcar NO votó" : "Marcar YA votó";
+        btn.onclick = function () {
+          toggleVote(r.id);
+        };
+        tdEdit.appendChild(btn);
+        tr.appendChild(tdEdit);
+
+        frag.appendChild(tr);
+      });
+
+      els.tbody.innerHTML = "";
+      els.tbody.appendChild(frag);
+    }
+
+    function toggleVote(id) {
+      const row = allRows.find((r) => r.id === id);
+      if (!row) return;
+
+      row.votoValido = !row.votoValido;
+      if (row.votoValido && !row.tieneFirma) {
+        row.tieneFirma = true;
+      }
+      recomputeFlags(row);
+
+      if (row.isNew) {
+        const idx = newRows.findIndex((r) => r.id === id);
+        if (idx !== -1) {
+          newRows[idx].votoValido = row.votoValido;
+          newRows[idx].tieneFirma = row.tieneFirma;
+          recomputeFlags(newRows[idx]);
+        }
+        saveNewRows();
+      } else {
+        const overrides = loadOverrides();
+        overrides[id] = { votoValido: row.votoValido };
+        saveOverrides(overrides);
+      }
+
+      applyFiltersAndRender();
+    }
+
+    function generateNewId() {
+      let id;
+      do {
+        id = "N" + Math.floor(Math.random() * 1e9).toString(36);
+      } while (allRows.some((r) => r.id === id));
+      return id;
+    }
+
+    function handleAddSubmit(e) {
+      e.preventDefault();
+
+      const nombre = els.addNombre.value.trim();
+      const telefono = els.addTelefono.value.trim();
+
+      if (!nombre || !telefono) {
+        alert("Por favor captura al menos nombre y teléfono.");
+        return;
+      }
+
+      const zona = els.addZona.value.trim();
+      const direccion = els.addDireccion.value.trim();
+      const relacion = els.addRelacion.value || "";
+      const estructura = els.addEstructura.value.trim();
+      const tieneFirma = els.addFirma.value === "si";
+      const votoValido = els.addVoto.value === "si";
+      const canalVoto = els.addCanal.value.trim();
+      const capturadoPor = els.addCapturado.value.trim();
+
+      const file = els.addFoto.files[0];
+
+      const baseData = {
+        id: generateNewId(),
+        nombre,
+        telefono,
+        zona,
+        direccion,
+        relacion,
+        estructura,
+        tieneFirma,
+        votoValido,
+        capturadoPor,
+        canalVoto,
+        localPhotoData: "",
+      };
+
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = function (ev) {
+          baseData.localPhotoData = ev.target.result;
+          addNewRecord(baseData);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        addNewRecord(baseData);
+      }
+    }
+
+    function addNewRecord(dataObj) {
+      const row = createRowFromNewData(dataObj);
+      newRows.push(row);
+      saveNewRows();
+      rebuildAllRows();
+      buildFilterOptions();
+      applyFiltersAndRender();
+
+      els.formAdd.reset();
+      els.addFirma.value = "si";
+      els.addVoto.value = "no";
+    }
+
+    function attachEvents() {
+      [
+        els.filterZona,
+        els.filterRelacion,
+        els.filterEstructura,
+        els.filterMov,
+      ].forEach((sel) => {
+        sel.addEventListener("change", applyFiltersAndRender);
+      });
+
+      els.searchText.addEventListener("input", () => {
+        clearTimeout(els._searchTimeout);
+        els._searchTimeout = setTimeout(applyFiltersAndRender, 180);
+      });
+
+      els.btnReset.addEventListener("click", () => {
+        els.filterZona.value = "";
+        els.filterRelacion.value = "";
+        els.filterEstructura.value = "";
+        els.filterMov.value = "";
+        els.searchText.value = "";
+        applyFiltersAndRender();
+      });
+
+      els.formAdd.addEventListener("submit", handleAddSubmit);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      attachEvents();
+      loadCSV();
+    });
+  </script>
+</body>
+</html>
